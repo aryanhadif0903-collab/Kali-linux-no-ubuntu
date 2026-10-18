@@ -1,0 +1,58 @@
+name: Kali Linux Native RDP
+# Official Kali Linux Rolling Container with XRDP
+
+on:
+  workflow_dispatch:
+
+jobs:
+  kali-native-rdp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3600
+
+    container:
+      image: kalilinux/kali-rolling:latest
+      options: --privileged
+
+    steps:
+      - name: Update Kali Repositories & Install Packages
+        run: |
+          apt-get update -y
+          apt-get install -y kali-desktop-xfce xrdp curl sudo net-tools
+          
+          # Konfigurasi XRDP
+          echo "xfce4-session" > /root/.xsession
+          service xrdp start
+
+      - name: Create Kali User
+        run: |
+          useradd -m -s /bin/bash erroorsystem
+          echo "erroorsystem:erroorsystem@123" | chpasswd
+          usermod -aG sudo erroorsystem
+          echo "exec startxfce4" > /home/erroorsystem/.xsession
+          chown erroorsystem:erroorsystem /home/erroorsystem/.xsession
+
+      - name: Install & Start Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+          
+          # Mulakan tailscaled dalam background
+          tailscaled --state=/var/lib/tailscale/tailscaled.state --socket=/run/tailscale/tailscaled.sock &
+          sleep 5
+          
+          # Connect ke Tailscale
+          tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=kali-cloud-$GITHUB_RUN_ID
+
+      - name: Maintain Connection
+        run: |
+          TS_IP=$(tailscale ip -4)
+          echo -e "\n=========================================="
+          echo "   KALI LINUX BERJAYA DIJALANKAN!"
+          echo "   IP Tailscale : $TS_IP"
+          echo "   Username     : erroorsystem"
+          echo "   Password     : erroorsystem@123"
+          echo "=========================================="
+          
+          while true; do
+              sleep 300
+          done
+          
